@@ -1,22 +1,32 @@
 let map, markerCluster;
 let showNormalPackages = true;
 let activityChart;
+let updateInterval;
 
 function initMap() {
-    // Map setup
+    // Map setup with dark theme
     map = L.map('map-container', {
         minZoom: 2,
-        maxBounds: [[-90, -180], [90, 180]]
+        maxBounds: [[-90, -180], [90, 180]],
+        zoomControl: false,
+        attributionControl: false
     }).setView([20, 0], 2);
     
+    // Dark map tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    
+    // Custom zoom control
+    L.control.zoom({
+        position: 'topright'
     }).addTo(map);
     
     // Cluster configuration
     markerCluster = L.markerClusterGroup({
         maxClusterRadius: 40,
         spiderfyOnMaxZoom: false,
+        showCoverageOnHover: false,
         iconCreateFunction: cluster => {
             const childCount = cluster.getChildCount();
             const suspiciousCount = cluster.getAllChildMarkers()
@@ -46,7 +56,8 @@ function initMap() {
     // Event listener for toggle
     document.getElementById('toggle-normal').addEventListener('click', function() {
         showNormalPackages = !showNormalPackages;
-        this.textContent = showNormalPackages ? 'Hide Normal Packages' : 'Show Normal Packages';
+        this.querySelector('span').textContent = showNormalPackages ? 
+            'HIDE NORMAL PACKAGES' : 'SHOW NORMAL PACKAGES';
         updatePackages();
     });
 }
@@ -61,10 +72,10 @@ function updatePackages() {
                 if (pkg.suspicious || showNormalPackages) {
                     const marker = L.circleMarker([pkg.latitude, pkg.longitude], {
                         radius: 6,
-                        fillColor: pkg.suspicious ? '#ff0000' : '#4CAF50',
-                        color: '#fff',
-                        weight: 1,
-                        fillOpacity: 0.8,
+                        fillColor: pkg.suspicious ? '#ff5555' : '#64ffda',
+                        color: pkg.suspicious ? '#ff0000' : '#172a45',
+                        weight: 1.5,
+                        fillOpacity: 0.9,
                         isSuspicious: pkg.suspicious
                     }).bindPopup(createPopup(pkg));
                     
@@ -73,7 +84,8 @@ function updatePackages() {
             });
             
             map.addLayer(markerCluster);
-        });
+        })
+        .catch(err => console.error('Error fetching packages:', err));
 }
 
 function createPopup(pkg) {
@@ -81,7 +93,9 @@ function createPopup(pkg) {
         <div class="popup-content">
             <strong>IP:</strong> ${pkg.ip}<br>
             <strong>Country:</strong> ${pkg.country}<br>
-            <strong>Type:</strong> ${pkg.suspicious ? 'Suspicious' : 'Normal'}<br>
+            <strong>Type:</strong>
+                ${pkg.suspicious ? 'SUSPICIOUS' : 'NORMAL'}
+            </span><br>
             <strong>Time:</strong> ${pkg.human_time}
         </div>
     `;
@@ -97,11 +111,15 @@ function updateStats() {
             const locationsList = document.getElementById('top-locations');
             locationsList.innerHTML = data.top_countries
                 .map(([country, stats]) => 
-                    `<li>${country}: ${stats.total} (${stats.suspicious} suspicious)</li>`)
+                    `<li>
+                        <span>${country}</span>
+                        <span>${stats.total} (${stats.suspicious})</span>
+                    </li>`)
                 .join('');
             
             updateChart(data.country_stats);
-        });
+        })
+        .catch(err => console.error('Error fetching stats:', err));
 }
 
 function updateChart(data) {
@@ -111,35 +129,96 @@ function updateChart(data) {
         window.activityChart.destroy();
     }
     
+    const chartData = {
+        labels: data.map(d => d.country),
+        datasets: [{
+            label: 'Suspicious',
+            data: data.map(d => d.suspicious),
+            backgroundColor: 'rgba(255, 85, 85, 0.7)',
+            borderWidth: 0,
+            borderRadius: 2
+        }, {
+            label: 'Normal',
+            data: data.map(d => d.normal),
+            backgroundColor: 'rgba(100, 255, 218, 0.7)',
+            borderWidth: 0,
+            borderRadius: 2
+        }]
+    };
+    
     window.activityChart = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels: data.map(d => d.country),
-            datasets: [{
-                label: 'Suspicious',
-                data: data.map(d => d.suspicious),
-                backgroundColor: 'rgba(255, 99, 132, 0.7)',
-                borderWidth: 0
-            }, {
-                label: 'Normal',
-                data: data.map(d => d.normal),
-                backgroundColor: 'rgba(75, 192, 192, 0.7)',
-                borderWidth: 0
-            }]
-        },
+        data: chartData,
         options: {
             responsive: true,
-            animation: false, 
+            maintainAspectRatio: false,
+            animation: false,
             plugins: {
-                legend: { position: 'top' },
-                title: { display: true, text: 'Packages by Country' }
+                legend: { 
+                    position: 'top',
+                    labels: {
+                        color: '#ccd6f6',
+                        font: {
+                            family: 'Roboto Mono',
+                            size: 10
+                        },
+                        boxWidth: 12,
+                        padding: 10
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#172a45',
+                    titleColor: '#64ffda',
+                    bodyColor: '#e6f1ff',
+                    borderColor: '#303f60',
+                    borderWidth: 1,
+                    padding: 10,
+                    titleFont: {
+                        family: 'Roboto Mono',
+                        size: 12
+                    },
+                    bodyFont: {
+                        family: 'Inter',
+                        size: 12
+                    }
+                }
             },
             scales: {
-                y: { beginAtZero: true, stacked: true },
-                x: { stacked: true }
+                y: { 
+                    beginAtZero: true, 
+                    stacked: true,
+                    grid: {
+                        color: 'rgba(48, 63, 96, 0.5)'
+                    },
+                    ticks: {
+                        color: '#8892b0',
+                        font: {
+                            family: 'Roboto Mono',
+                            size: 10
+                        }
+                    }
+                },
+                x: { 
+                    stacked: true,
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: '#8892b0',
+                        font: {
+                            family: 'Roboto Mono',
+                            size: 10
+                        }
+                    }
+                }
             }
         }
     });
 }
 
 document.addEventListener('DOMContentLoaded', initMap);
+
+// Clean up on page exit
+window.addEventListener('beforeunload', () => {
+    clearInterval(updateInterval);
+});

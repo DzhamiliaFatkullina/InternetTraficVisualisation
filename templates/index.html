@@ -1,44 +1,61 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Network Package Visualization</title>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <!-- MarkerCluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
-    <!-- Local CSS -->
     <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <div id="map-container"></div>
-        <div class="sidebar">
-            <h2>Network Package Tracker</h2>
-            <div class="stats-panel">
-                <h3>Real-time Stats</h3>
-                <p>Total Packages: <span id="total-packages">0</span></p>
-                <p>Suspicious: <span id="suspicious-count">0</span></p>
-                
-                <h4>Top Locations</h4>
-                <ul id="top-locations"></ul>
+    <div class="app-container">
+        <div class="map-view" id="map-container"></div>
+        <div class="dashboard-panel">
+            <div class="panel-header">
+                <h1>NETWORK PACKAGE TRACKER</h1>
+                <div class="status-indicator">
+                    <span class="active"></span>
+                    <span>LIVE</span>
+                </div>
             </div>
+            
+            <div class="stats-card">
+                <h3>REAL-TIME STATS</h3>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">TOTAL</span>
+                        <span class="stat-value" id="total-packages">0</span>
+                    </div>
+                    <div class="stat-item danger">
+                        <span class="stat-label">SUSPICIOUS</span>
+                        <span class="stat-value" id="suspicious-count">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="locations-card">
+                <h3>TOP LOCATIONS</h3>
+                <ul class="location-list" id="top-locations"></ul>
+            </div>
+            
             <div class="controls">
-                <button id="toggle-normal">Hide Normal Packages</button>
+                <button id="toggle-normal" class="cyber-button">
+                    <span>HIDE NORMAL PACKAGES</span>
+                </button>
             </div>
-            <div class="chart-container">
+            
+            <div class="chart-card">
                 <canvas id="activity-chart"></canvas>
             </div>
         </div>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <!-- MarkerCluster JS -->
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Your local JS -->
     <script src="/static/script.js"></script>
 </body>
 </html>
