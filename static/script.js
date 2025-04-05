@@ -1,169 +1,145 @@
-// Map visualization with Leaflet.js
-let map;
-let markers = [];
-let markerCluster;
-let currentTimeFilter = 0;
-let statsInterval, updateInterval;
+let map, markerCluster;
+let showNormalPackages = true;
 let activityChart;
-let useClusters = true;
 
-// Initialize the map
 function initMap() {
-    // Create map centered on the world
-    map = L.map('map-container').setView([20, 0], 2);
+    // Map setup
+    map = L.map('map-container', {
+        minZoom: 2,
+        maxBounds: [[-90, -180], [90, 180]]
+    }).setView([20, 0], 2);
     
-    // Add tile layer (OpenStreetMap)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
     
-    // Initialize marker cluster group
+    // Cluster configuration
     markerCluster = L.markerClusterGroup({
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        zoomToBoundsOnClick: true,
-        // Custom cluster icons
-        iconCreateFunction: function (cluster) {
+        maxClusterRadius: 40,
+        spiderfyOnMaxZoom: false,
+        iconCreateFunction: cluster => {
             const childCount = cluster.getChildCount();
-            let size = 'small';
-            if (childCount > 100) {
-                size = 'large';
-            } else if (childCount > 10) {
-                size = 'medium';
-            }
-            return new L.DivIcon({
-                html: '<div><span>' + childCount + '</span></div>',
-                className: 'marker-cluster-' + size,
-                iconSize: new L.Point(40, 40)
+            const suspiciousCount = cluster.getAllChildMarkers()
+                .filter(m => m.options.isSuspicious).length;
+            
+            return L.divIcon({
+                html: `
+                    <div class="cluster-marker">
+                        <span>${childCount}</span>
+                        ${suspiciousCount > 0 ? `<span class="suspicious-count">${suspiciousCount}</span>` : ''}
+                    </div>
+                `,
+                className: 'cluster-icon',
+                iconSize: [40, 40]
             });
         }
     });
     
-    // Initialize stats and chart
-    initStats();
-    initChart();
-    
-    // Start updates
+    // Initial load
     updatePackages();
-    statsInterval = setInterval(updateStats, 5000);
-    updateInterval = setInterval(updatePackages, 1000);
-    
-    // Add event listeners
-    document.getElementById('time-range').addEventListener('change', updateTimeFilter);
-    document.getElementById('toggle-clusters').addEventListener('click', toggleClusters);
-}
-
-function initChart() {
-    const ctx = document.getElementById('activity-chart').getContext('2d');
-    activityChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: Array.from({length: 24}, (_, i) => i),
-            datasets: [{
-                label: 'Packages per hour',
-                data: Array(24).fill(0),
-                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: { beginAtZero: true }
-            }
-        }
-    });
-}
-
-function initStats() {
     updateStats();
-}
-
-function updateStats() {
-    fetch('/stats')
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('total-packages').textContent = data.total_packages;
-            document.getElementById('suspicious-count').textContent = data.suspicious_count;
-            
-            const topLocationsList = document.getElementById('top-locations');
-            topLocationsList.innerHTML = '';
-            data.top_locations.forEach(([loc, count]) => {
-                const li = document.createElement('li');
-                li.textContent = `${loc[0]}, ${loc[1]} (${count} packages)`;
-                topLocationsList.appendChild(li);
-            });
-            
-            // Update chart
-            activityChart.data.datasets[0].data = data.activity_by_hour;
-            activityChart.update();
-        });
-}
-
-function updateTimeFilter() {
-    currentTimeFilter = parseInt(this.value) * 60;
-    updatePackages();
-}
-
-function toggleClusters() {
-    useClusters = !useClusters;
-    updatePackages();
+    updateInterval = setInterval(() => {
+        updatePackages();
+        updateStats();
+    }, 3000);
+    
+    // Event listener for toggle
+    document.getElementById('toggle-normal').addEventListener('click', function() {
+        showNormalPackages = !showNormalPackages;
+        this.textContent = showNormalPackages ? 'Hide Normal Packages' : 'Show Normal Packages';
+        updatePackages();
+    });
 }
 
 function updatePackages() {
     fetch('/api/packages')
-        .then(response => response.json())
-        .then(data => {
-            // Clear old markers
-            markers.forEach(marker => {
-                if (markerCluster.hasLayer(marker)) {
-                    markerCluster.removeLayer(marker);
-                }
-                if (map.hasLayer(marker)) {
-                    map.removeLayer(marker);
-                }
-            });
-            markers = [];
+        .then(res => res.json())
+        .then(packages => {
+            markerCluster.clearLayers();
             
-            const now = Math.floor(Date.now() / 1000);
-            const filteredData = currentTimeFilter > 0 
-                ? data.filter(p => p.timestamp >= now - currentTimeFilter)
-                : data;
-            
-            // Add new markers
-            filteredData.forEach(pkg => {
-                const date = new Date(pkg.timestamp * 1000).toLocaleString();
-                const popupContent = `
-                    <strong>IP:</strong> ${pkg.ip}<br>
-                    <strong>Location:</strong> ${pkg.latitude.toFixed(2)}, ${pkg.longitude.toFixed(2)}<br>
-                    <strong>Time:</strong> ${date}<br>
-                    <strong>Status:</strong> ${pkg.suspicious ? 'Suspicious' : 'Normal'}
-                `;
-                
-                const marker = L.circleMarker([pkg.latitude, pkg.longitude], {
-                    radius: 5,
-                    fillColor: pkg.suspicious ? '#F44336' : '#4CAF50',
-                    color: '#fff',
-                    weight: 1,
-                    opacity: 1,
-                    fillOpacity: 0.8
-                }).bindPopup(popupContent);
-                
-                markers.push(marker);
-                
-                if (useClusters) {
+            packages.forEach(pkg => {
+                if (pkg.suspicious || showNormalPackages) {
+                    const marker = L.circleMarker([pkg.latitude, pkg.longitude], {
+                        radius: 6,
+                        fillColor: pkg.suspicious ? '#ff0000' : '#4CAF50',
+                        color: '#fff',
+                        weight: 1,
+                        fillOpacity: 0.8,
+                        isSuspicious: pkg.suspicious
+                    }).bindPopup(createPopup(pkg));
+                    
                     markerCluster.addLayer(marker);
-                } else {
-                    marker.addTo(map);
                 }
             });
             
-            if (useClusters) {
-                map.addLayer(markerCluster);
-            }
+            map.addLayer(markerCluster);
         });
 }
 
-// Start the application when DOM is loaded
+function createPopup(pkg) {
+    return `
+        <div class="popup-content">
+            <strong>IP:</strong> ${pkg.ip}<br>
+            <strong>Country:</strong> ${pkg.country}<br>
+            <strong>Type:</strong> ${pkg.suspicious ? 'Suspicious' : 'Normal'}<br>
+            <strong>Time:</strong> ${pkg.human_time}
+        </div>
+    `;
+}
+
+function updateStats() {
+    fetch('/stats')
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('total-packages').textContent = data.total_packages;
+            document.getElementById('suspicious-count').textContent = data.suspicious_count;
+            
+            const locationsList = document.getElementById('top-locations');
+            locationsList.innerHTML = data.top_countries
+                .map(([country, stats]) => 
+                    `<li>${country}: ${stats.total} (${stats.suspicious} suspicious)</li>`)
+                .join('');
+            
+            updateChart(data.country_stats);
+        });
+}
+
+function updateChart(data) {
+    const ctx = document.getElementById('activity-chart').getContext('2d');
+    
+    if (window.activityChart) {
+        window.activityChart.destroy();
+    }
+    
+    window.activityChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d.country),
+            datasets: [{
+                label: 'Suspicious',
+                data: data.map(d => d.suspicious),
+                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                borderWidth: 0
+            }, {
+                label: 'Normal',
+                data: data.map(d => d.normal),
+                backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            animation: false, 
+            plugins: {
+                legend: { position: 'top' },
+                title: { display: true, text: 'Packages by Country' }
+            },
+            scales: {
+                y: { beginAtZero: true, stacked: true },
+                x: { stacked: true }
+            }
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', initMap);
