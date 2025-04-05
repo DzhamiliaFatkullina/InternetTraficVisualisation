@@ -3,8 +3,12 @@ import json
 import time
 import requests
 from datetime import datetime
+import os
 
 def send_packages(csv_file):
+    # Get server URL from environment variable or use default
+    server_url = os.getenv('SERVER_URL', 'http://server:5000')
+    
     with open(csv_file, 'r') as file:
         reader = csv.DictReader(file)
         packages = list(reader)
@@ -42,7 +46,7 @@ def send_packages(csv_file):
         
         try:
             response = requests.post(
-                'http://localhost:5000/api/packages',
+                f'{server_url}/api/packages',
                 json=package
             )
             print(f"Sent package from {package['ip']} at {current_package_time}. Status: {response.status_code}")
@@ -51,4 +55,6 @@ def send_packages(csv_file):
             print(f"Failed to send package: {e}")
 
 if __name__ == '__main__':
-    send_packages('ip_addresses.csv')
+    # Get CSV file path from environment or use default
+    csv_file = os.getenv('CSV_FILE', 'ip_addresses.csv')
+    send_packages(csv_file)

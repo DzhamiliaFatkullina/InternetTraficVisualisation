@@ -16,7 +16,7 @@ DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 received_packages = deque(maxlen=MAX_PACKAGE_STORAGE)
 
 # Geocoding setup with English language
-geolocator = Nominatim(user_agent="network_package_tracker")
+geolocator = Nominatim(user_agent="network_package_tracker", timeout=10)
 geocode = RateLimiter(geolocator.reverse, min_delay_seconds=1)
 
 @lru_cache(maxsize=1000)
